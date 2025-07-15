@@ -1,0 +1,12 @@
+farmer_agent_app/
+├── app.py                 ← Streamlit main app
+├── logic/
+│   ├── assistant.py       ← Core AI logic (your prompt logic)
+│   ├── voice_io.py        ← Voice input/output functions
+│   └── utils.py           ← Helper functions (e.g., fallback data)
+├── data/
+│   ├── weather.json       ← Preloaded 7-day weather data
+│   ├── tomato_prices.json ← Static market prices
+│   └── schemes.txt        ← Government scheme info
+└── models/
+    └── ...                ← (Optional) ML models for crop/disease
