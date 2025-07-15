@@ -1,0 +1,194 @@
+# ======================
+# 🌾 FARMER AGENT APP
+# ======================
+import os
+import json
+import numpy as np
+import pandas as pd
+import streamlit as st
+import joblib
+import pyttsx3
+import speech_recognition as sr
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+import playsound
+from gtts import gTTS
+
+# -------------------------
+# Streamlit Setup
+# -------------------------
+st.set_page_config(page_title="Farmer Agent", layout="centered")
+st.title("🌱 Farmer Agent - Offline AI Assistant")
+
+# -------------------------
+# Crop Recommendation Model
+# -------------------------
+def train_crop_model():
+    data = {
+        "N": [90, 40, 60, 80],
+        "P": [40, 35, 50, 60],
+        "K": [40, 60, 70, 80],
+        "temperature": [21, 23, 25, 28],
+        "humidity": [80, 65, 75, 60],
+        "ph": [6.5, 7.0, 6.2, 6.8],
+        "rainfall": [200, 150, 180, 210],
+        "label": ["tomato", "chili", "tomato", "onion"]
+    }
+    df = pd.DataFrame(data)
+    X = df.drop("label", axis=1)
+    y = df["label"]
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+    model = RandomForestClassifier()
+    model.fit(X_train, y_train)
+    os.makedirs("models", exist_ok=True)
+    joblib.dump(model, "models/crop_model.pkl")
+    return model
+
+model_path = "models/crop_model.pkl"
+if os.path.exists(model_path):
+    crop_model = joblib.load(model_path)
+else:
+    crop_model = train_crop_model()
+
+# -------------------------
+# Static Market Data
+# -------------------------
+market_data = {
+    "Tomato": {
+        "Dindigul": "₹28/kg",
+        "Madurai": "₹26/kg",
+        "Salem": "₹30/kg",
+        "Coimbatore": "₹27/kg",
+        "Trichy": "₹29/kg"
+    },
+    "Onion": {
+        "Madurai": "₹18/kg",
+        "Salem": "₹20/kg"
+    }
+}
+
+# -------------------------
+# Utility Functions
+# -------------------------
+def load_json(file_path):
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Error loading {file_path}: {e}")
+        return {}
+
+def load_text(file_path):
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return f.read()
+    except Exception as e:
+        print(f"Error loading {file_path}: {e}")
+        return "No data available."
+
+# -------------------------
+# Voice I/O
+# -------------------------
+def speak(text):
+    engine = pyttsx3.init()
+    engine.say(text)
+    engine.runAndWait()
+
+def listen_command():
+    recognizer = sr.Recognizer()
+    with sr.Microphone() as source:
+        st.info("🎙️ Listening...")
+        audio = recognizer.listen(source)
+    try:
+        return recognizer.recognize_google(audio)
+    except sr.UnknownValueError:
+        return "Sorry, I could not understand."
+    except sr.RequestError:
+        return "Sorry, service is unavailable."
+
+# -------------------------
+# Assistant Class
+# -------------------------
+class Assistant:
+    def get_fertilizer_tips(self, stage):
+        tips = {
+            "Pre-Planting": "Add compost and plow soil well.",
+            "Growing": "Apply nitrogen-rich fertilizer every 15 days.",
+            "Flowering": "Use phosphorous and potassium mix.",
+        }
+        return tips.get(stage, "No specific tips for that stage.")
+
+    def get_crop_variety(self, soil_type, season):
+        if soil_type == "Red Loamy Soil" and season == "Kharif":
+            return ["PKM-1", "Arka Vikas", "Sankranthi"]
+        return ["Variety A", "Variety B"]
+
+    def get_weather_forecast(self, location):
+        return [
+            {"day": "Monday", "forecast": "Sunny"},
+            {"day": "Tuesday", "forecast": "Cloudy"},
+            {"day": "Wednesday", "forecast": "Rain"},
+            {"day": "Thursday", "forecast": "Sunny"},
+            {"day": "Friday", "forecast": "Rain"},
+            {"day": "Saturday", "forecast": "Windy"},
+            {"day": "Sunday", "forecast": "Sunny"},
+        ]
+
+    def get_market_prices(self):
+        return json.dumps(market_data, indent=2)
+
+# -------------------------
+# Leaf Disease Detection Model (Optional)
+# -------------------------
+def train_leaf_disease_model():
+    X = np.random.rand(100, 224, 224, 3)
+    y = np.random.randint(0, 3, 100)
+
+    model = Sequential([
+        Conv2D(32, (3, 3), activation='relu', input_shape=(224, 224, 3)),
+        MaxPooling2D(2, 2),
+        Conv2D(64, (3, 3), activation='relu'),
+        MaxPooling2D(2, 2),
+        Flatten(),
+        Dense(128, activation='relu'),
+        Dropout(0.3),
+        Dense(3, activation='softmax')
+    ])
+
+    model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+    model.fit(X, y, epochs=3, batch_size=8, verbose=1)
+
+    os.makedirs("models", exist_ok=True)
+    model.save("models/leaf_disease_model.h5")
+    with open("models/labels.txt", "w") as f:
+        f.write("Tomato - Healthy\nTomato - Early Blight\nTomato - Leaf Curl Virus")
+    print("✅ Leaf disease model trained and saved.")
+
+# -------------------------
+# Interface
+# -------------------------
+assistant = Assistant()
+
+st.subheader("📋 Text-based Options")
+
+if st.button("Show Best Tomato Varieties"):
+    varieties = assistant.get_crop_variety("Red Loamy Soil", "Kharif")
+    st.success("Recommended Varieties: " + ", ".join(varieties))
+
+if st.button("Show 7-Day Forecast"):
+    forecast = assistant.get_weather_forecast("Kodaikanal")
+    for day in forecast:
+        st.write(f"{day['day']}: {day['forecast']}")
+
+if st.button("Show Market Prices"):
+    st.json(market_data)
+
+if st.button("🎤 Speak"):
+    query = listen_command()
+    st.write("You said:", query)
+    response = assistant.get_fertilizer_tips("Pre-Planting")
+    st.success("Agent says: " + response)
+    speak(response)
